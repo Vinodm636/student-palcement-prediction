@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Analytics — PlaceIQ{% endblock %}
+{% block extra_css %}
+<style>
+.metric-best{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3)!important}
+.model-row td{font-size:.855rem}
+.badge-best{background:rgba(251,191,36,.15);color:#fbbf24;border-radius:20px;
+  padding:2px 10px;font-size:.7rem;font-weight:700}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1><i class="bi bi-graph-up-arrow me-2" style="color:#6366f1"></i>Model Analytics</h1>
+    <p>Comparative evaluation of {{ metrics|length }} classification algorithms · {{ dataset_size }} students · {{ total_features }} features</p>
+  </div>
+  <a href="/predict" class="btn-acc"><i class="bi bi-cpu-fill me-1"></i>Run Prediction</a>
+</div>
+
+<!-- Best model highlight -->
+<div class="card-d mb-4" style="background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.25)">
+  <div class="d-flex align-items-center gap-4 flex-wrap">
+    <div style="font-size:2.8rem">🏆</div>
+    <div>
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Best Performing Model (by F1-Score)</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#fbbf24">{{ best_model }}</div>
+      <div style="color:var(--muted);font-size:.85rem;margin-top:3px">
+        {% for m in metrics %}{% if m.name == best_model %}
+          Accuracy: <b style="color:#34d399">{{ m.accuracy }}%</b> ·
+          Precision: <b style="color:#60a5fa">{{ m.precision }}%</b> ·
+          Recall: <b style="color:#f472b6">{{ m.recall }}%</b> ·
+          F1: <b style="color:#fbbf24">{{ m.f1 }}%</b> ·
+          ROC-AUC: <b style="color:#a78bfa">{{ m.roc_auc }}%</b>
+        {% endif %}{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Metrics comparison table -->
+<div class="card-d mb-4">
+  <div style="font-weight:600;font-size:.92rem;margin-bottom:16px">
+    <i class="bi bi-table me-2" style="color:#6366f1"></i>Performance Metrics — All Models
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Rank</th><th>Model</th>
+          <th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1-Score</th>
+          <th>ROC-AUC</th><th>CV Accuracy</th><th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for m in metrics %}
+      <tr class="model-row {% if m.name == best_model %}metric-best{% endif %}">
+        <td style="font-weight:700;color:{% if loop.index==1 %}#fbbf24{% elif loop.index==2 %}#94a3b8{% elif loop.index==3 %}#fb923c{% else %}var(--muted){% endif %}">
+          {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}
+        </td>
+        <td>
+          <span style="font-weight:{% if m.name==best_model %}700{% else %}400{% endif %}">{{ m.name }}</span>
+          {% if m.name == best_model %}<span class="badge-best ms-2">BEST</span>{% endif %}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="pbar" style="width:52px"><div class="pbar-fill" style="width:{{ m.accuracy }}%;background:#6366f1"></div></div>
+            <span>{{ m.accuracy }}%</span>
+          </div>
+        </td>
+        <td><span style="color:#60a5fa;font-weight:500">{{ m.precision }}%</span></td>
+        <td><span style="color:#f472b6;font-weight:500">{{ m.recall }}%</span></td>
+        <td><span style="color:#fbbf24;font-weight:600">{{ m.f1 }}%</span></td>
+        <td><span style="color:#a78bfa;font-weight:500">{{ m.roc_auc }}%</span></td>
+        <td>
+          <span style="font-size:.8rem">{{ m.cv_mean }}% <span style="color:var(--muted)">± {{ m.cv_std }}%</span></span>
+        </td>
+        <td>
+          <a href="/model/{{ m.name.replace(' ','_') }}" class="btn-gh" style="padding:4px 10px;font-size:.75rem">
+            <i class="bi bi-eye-fill"></i> View
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Charts row 1 -->
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+        <i class="bi bi-bar-chart-fill me-2" style="color:#6366f1"></i>Model Comparison Chart
+      </div>
+      <canvas id="compChart" height="110"></canvas>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+        <i class="bi bi-hexagon-fill me-2" style="color:#a855f7"></i>Feature Importance (Top 10)
+      </div>
+      <canvas id="impChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ROC Curves -->
+<div class="card-d mb-4">
+  <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+    <i class="bi bi-activity me-2" style="color:#34d399"></i>ROC Curves — All Models
+    <span style="font-size:.75rem;color:var(--muted);font-weight:400;margin-left:6px">Higher = Better</span>
+  </div>
+  <canvas id="rocChart" height="80"></canvas>
+</div>
+
+<!-- Confusion Matrix + Distribution -->
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+        <i class="bi bi-grid-3x3 me-2" style="color:#f472b6"></i>Confusion Matrix — {{ best_cm_model }}
+      </div>
+      <canvas id="cmChart" height="200"></canvas>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+        <i class="bi bi-image me-2" style="color:#60a5fa"></i>Placement Distribution
+      </div>
+      <img src="/static/charts/placement_distribution.png" class="img-fluid rounded" alt="Distribution">
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const modelNames = {{ metrics|map(attribute='name')|list|tojson }};
+const palette = ['#6366f1','#34d399','#f472b6','#fb923c','#60a5fa','#a78bfa','#fbbf24'];
+
+// ── Grouped bar: model comparison ──
+new Chart(document.getElementById('compChart'), {
+  type: 'bar',
+  data: {
+    labels: modelNames,
+    datasets: [
+      {label:'Accuracy',  data:{{ metrics|map(attribute='accuracy')|list|tojson }},  backgroundColor:'#6366f1', borderRadius:4},
+      {label:'Precision', data:{{ metrics|map(attribute='precision')|list|tojson }}, backgroundColor:'#60a5fa', borderRadius:4},
+      {label:'Recall',    data:{{ metrics|map(attribute='recall')|list|tojson }},    backgroundColor:'#f472b6', borderRadius:4},
+      {label:'F1-Score',  data:{{ metrics|map(attribute='f1')|list|tojson }},        backgroundColor:'#fbbf24', borderRadius:4},
+      {label:'ROC-AUC',   data:{{ metrics|map(attribute='roc_auc')|list|tojson }},   backgroundColor:'#a78bfa', borderRadius:4},
+    ]
+  },
+  options:{
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+    scales:{
+      x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#1e293b'}},
+      y:{min:50,max:100,ticks:{color:'#94a3b8'},grid:{color:'#334155'}}
+    }
+  }
+});
+
+// ── Feature importance horizontal bar ──
+const impLabels = {{ imp_labels|safe }};
+const impVals   = {{ imp_values|safe }};
+new Chart(document.getElementById('impChart'), {
+  type: 'bar',
+  data: {
+    labels: impLabels,
+    datasets:[{
+      label:'Importance (%)',
+      data: impVals,
+      backgroundColor: impLabels.map((_,i)=>palette[i%palette.length]),
+      borderRadius: 4,
+    }]
+  },
+  options:{
+    indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#334155'}},
+      y:{ticks:{color:'#94a3b8',font:{size:9}},grid:{display:false}},
+    }
+  }
+});
+
+// ── ROC Curves ──
+const rocDatasets = {{ roc_datasets|safe }};
+new Chart(document.getElementById('rocChart'), {
+  type: 'line',
+  data: { datasets: rocDatasets },
+  options:{
+    parsing:{xAxisKey:'x', yAxisKey:'y'},
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+    scales:{
+      x:{type:'linear',min:0,max:1,title:{display:true,text:'False Positive Rate',color:'#64748b'},
+         ticks:{color:'#94a3b8'},grid:{color:'#334155'}},
+      y:{min:0,max:1,title:{display:true,text:'True Positive Rate',color:'#64748b'},
+         ticks:{color:'#94a3b8'},grid:{color:'#334155'}},
+    }
+  }
+});
+
+// ── Confusion Matrix heatmap via bar hack ──
+const cm = {{ best_cm|tojson }};
+const tn=cm[0][0], fp=cm[0][1], fn=cm[1][0], tp=cm[1][1];
+new Chart(document.getElementById('cmChart'),{
+  type:'bar',
+  data:{
+    labels:['Predicted: Not Placed','Predicted: Placed'],
+    datasets:[
+      {label:'Actual: Not Placed', data:[tn, fp],
+       backgroundColor:['rgba(52,211,153,.6)','rgba(248,113,113,.6)'], borderRadius:6},
+      {label:'Actual: Placed',     data:[fn, tp],
+       backgroundColor:['rgba(248,113,113,.4)','rgba(52,211,153,.8)'], borderRadius:6},
+    ]
+  },
+  options:{
+    plugins:{
+      legend:{labels:{color:'#94a3b8',font:{size:10}}},
+      tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}`}}
+    },
+    scales:{
+      x:{ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}},
+      y:{ticks:{color:'#94a3b8'},grid:{color:'#334155'},title:{display:true,text:'Count',color:'#64748b'}},
+    }
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Model Justification — PlaceIQ{% endblock %}
+{% block extra_css %}
+<style>
+.rank-row{background:var(--card2);border-radius:10px;padding:11px 16px;margin-bottom:8px;
+  display:flex;align-items:center;gap:12px;border:1px solid var(--border)}
+.rank-row.winner{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.07)}
+.rank-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0}
+.note-card{background:var(--card2);border-radius:12px;padding:14px 16px;
+  border-left:3px solid var(--border)}
+.note-card.best{border-left-color:#fbbf24}
+.verdict-box{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);
+  border-radius:16px;padding:24px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1><i class="bi bi-trophy-fill me-2" style="color:#fbbf24"></i>Best-Model Justification</h1>
+    <p>Comparative analysis of all 8 classifiers — why <b style="color:#fbbf24">{{ best }}</b> is the best choice</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/analytics"      class="btn-gh"><i class="bi bi-graph-up me-1"></i>Analytics</a>
+    <a href="/preprocessing"  class="btn-gh"><i class="bi bi-funnel me-1"></i>Preprocessing</a>
+  </div>
+</div>
+
+<!-- Verdict card -->
+<div class="verdict-box mb-4">
+  <div class="row align-items-center g-3">
+    <div class="col-auto" style="font-size:3rem">🏆</div>
+    <div class="col">
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Recommended Best Model</div>
+      <div style="font-size:1.7rem;font-weight:800;color:#fbbf24">{{ best }}</div>
+      <div style="color:var(--muted);font-size:.87rem;margin-top:4px">
+        Ranked <b style="color:#fbbf24">#1</b> by F1-Score ({{ br.f1 }}%) ·
+        Accuracy {{ br.accuracy }}% · ROC-AUC {{ br.roc_auc }}% ·
+        CV-F1 {{ br.cv_f1 }}% ± {{ br.cv_f1_std }}%
+      </div>
+    </div>
+    <div class="col-md-4">
+      {% set bm = best_metrics|tojson %}
+      <canvas id="bestRadar" height="180"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Side-by-side metric rankings -->
+<div class="row g-3 mb-4">
+  {% for metric_key, metric_label, color in [
+    ('f1','F1-Score Ranking','#fbbf24'),
+    ('accuracy','Accuracy Ranking','#6366f1'),
+    ('roc_auc','ROC-AUC Ranking','#a78bfa'),
+    ('recall','Recall Ranking','#f472b6'),
+  ] %}
+  <div class="col-md-6 col-lg-3">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.88rem;margin-bottom:14px;color:{{ color }}">
+        <i class="bi bi-bar-chart-fill me-1"></i>{{ metric_label }}
+      </div>
+      {% for name, r in ranks[metric_key] %}
+      <div class="rank-row {% if name == best %}winner{% endif %}">
+        <div class="rank-badge"
+             style="background:{% if loop.index==1 %}rgba(251,191,36,.2);color:#fbbf24{% elif loop.index==2 %}rgba(148,163,184,.2);color:#94a3b8{% elif loop.index==3 %}rgba(251,146,60,.2);color:#fb923c{% else %}rgba(51,65,85,.5);color:#64748b{% endif %}">
+          {{ loop.index }}
+        </div>
+        <div style="flex:1;font-size:.82rem;font-weight:{% if name==best %}600{% else %}400{% endif %}">
+          {{ name }}{% if name == best %} ⭐{% endif %}
+        </div>
+        <div style="font-weight:700;font-size:.88rem;color:{{ color }}">{{ r[metric_key] }}%</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Model-by-model comparison chart -->
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.92rem;margin-bottom:14px">
+        <i class="bi bi-bar-chart-fill me-2" style="color:#6366f1"></i>F1 · Accuracy · ROC-AUC — All Models
+      </div>
+      <canvas id="compareBar" height="120"></canvas>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.92rem;margin-bottom:14px">
+        <i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>Why F1 is the Key Metric
+      </div>
+      <div style="font-size:.83rem;color:var(--muted);line-height:1.7">
+        Our dataset has <b style="color:#f87171">imbalanced classes</b> 
+        (~44% placed, ~56% not placed). In such scenarios:<br><br>
+        • <b style="color:#34d399">Accuracy</b> can be misleading — a model that always predicts "Not Placed"
+          scores ~56% accuracy without learning anything.<br><br>
+        • <b style="color:#fbbf24">F1-Score</b> = harmonic mean of Precision &amp; Recall.
+          It penalises models that sacrifice one for the other.<br><br>
+        • <b style="color:#a78bfa">ROC-AUC</b> measures rank discrimination across all thresholds —
+          ideal for probabilistic placement prediction.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Per-model notes -->
+<div class="card-d mb-4">
+  <div style="font-weight:600;font-size:.92rem;margin-bottom:16px">
+    <i class="bi bi-journal-text me-2" style="color:#6366f1"></i>Algorithm-by-Algorithm Analysis
+  </div>
+  <div class="row g-3">
+  {% for name, note in model_notes.items() %}
+  <div class="col-md-6">
+    <div class="note-card {% if name == best %}best{% endif %}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-weight:600;font-size:.88rem">
+          {{ name }} {% if name == best %}🏆{% endif %}
+        </span>
+        <span style="margin-left:auto;font-size:.75rem;font-weight:600;
+          color:{% if name==best %}#fbbf24{% else %}var(--muted){% endif %}">
+          F1: {{ results[name]['f1'] }}%
+        </span>
+      </div>
+      <div style="color:var(--muted);font-size:.8rem;line-height:1.6">{{ note }}</div>
+      <div class="d-flex gap-2 mt-2">
+        <span style="font-size:.73rem;color:#6366f1">Acc: {{ results[name]['accuracy'] }}%</span>
+        <span style="font-size:.73rem;color:#f472b6">Recall: {{ results[name]['recall'] }}%</span>
+        <span style="font-size:.73rem;color:#a78bfa">AUC: {{ results[name]['roc_auc'] }}%</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  </div>
+</div>
+
+<!-- Final justification paragraph -->
+<div class="card-d" style="background:rgba(99,102,241,.06);border-color:rgba(99,102,241,.3)">
+  <div style="font-weight:700;font-size:.95rem;margin-bottom:12px">
+    <i class="bi bi-check-circle-fill me-2" style="color:#34d399"></i>Final Justification
+  </div>
+  <div style="font-size:.88rem;color:var(--muted);line-height:1.8">
+    Among all 8 classifiers trained on the engineering placement dataset,
+    <b style="color:#fbbf24">{{ best }}</b> achieves the highest F1-Score of
+    <b style="color:#fbbf24">{{ br.f1 }}%</b>, which is the most relevant metric
+    for this imbalanced binary classification problem.
+    <br><br>
+    It also demonstrates strong generalisation with a 5-fold cross-validated F1 of
+    <b style="color:#34d399">{{ br.cv_f1 }}% ± {{ br.cv_f1_std }}%</b>,
+    indicating it does not overfit to the training set. Its ROC-AUC of
+    <b style="color:#a78bfa">{{ br.roc_auc }}%</b> confirms excellent discrimination
+    ability between placed and non-placed students across all probability thresholds.
+    <br><br>
+    The model correctly identifies the most influential factors: CGPA, DSA skills,
+    programming ability, internship experience, and aptitude scores — which aligns
+    with real-world hiring practices in engineering campus placements.
+    <b style="color:#fbbf24">{{ best }} is therefore recommended as the production model
+    for this Student Placement Prediction System.</b>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Best model radar
+const bm = {{ best_metrics|safe }};
+new Chart(document.getElementById('bestRadar'), {
+  type: 'radar',
+  data:{
+    labels: Object.keys(bm),
+    datasets:[{
+      label: '{{ best }}',
+      data: Object.values(bm),
+      borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,.12)',
+      pointBackgroundColor:'#fbbf24', borderWidth:2, pointRadius:4,
+    }]
+  },
+  options:{
+    scales:{r:{min:50,max:100,
+      ticks:{color:'#64748b',backdropColor:'transparent',stepSize:10},
+      grid:{color:'#334155'},pointLabels:{color:'#94a3b8',font:{size:10}}}},
+    plugins:{legend:{display:false}}
+  }
+});
+
+// Grouped bar
+const mNames = {{ all_names|safe }};
+const f1s    = {{ all_f1|safe }};
+const accs   = {{ all_acc|safe }};
+const aucs   = {{ all_auc|safe }};
+const pal = ['#6366f1','#34d399','#f472b6','#fb923c','#60a5fa','#a78bfa','#fbbf24','#22d3ee'];
+new Chart(document.getElementById('compareBar'), {
+  type:'bar',
+  data:{
+    labels: mNames,
+    datasets:[
+      {label:'F1-Score (%)', data:f1s, backgroundColor:'#fbbf24', borderRadius:5},
+      {label:'Accuracy (%)', data:accs,backgroundColor:'#6366f1', borderRadius:5},
+      {label:'ROC-AUC (%)', data:aucs, backgroundColor:'#a78bfa', borderRadius:5},
+    ]
+  },
+  options:{
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+    scales:{
+      x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#1e293b'}},
+      y:{min:50,max:105,ticks:{color:'#94a3b8'},grid:{color:'#334155'}},
+    }
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}Predict — PlaceIQ{% endblock %}
+{% block extra_css %}
+<style>
+.verdict-placed{background:rgba(52,211,153,.08);border:2px solid rgba(52,211,153,.4);border-radius:18px;padding:26px}
+.verdict-risk  {background:rgba(248,113,113,.08);border:2px solid rgba(248,113,113,.4);border-radius:18px;padding:26px}
+.model-chip{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.model-chip .mn{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.model-chip .mv{font-size:1.05rem;font-weight:800}
+.model-chip .ms{font-size:.72rem;color:var(--muted);margin-top:2px}
+.prob-ring{position:relative;width:90px;height:90px;margin:0 auto}
+.section-label{font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);margin-bottom:8px;margin-top:16px}
+.rec-item{background:var(--card2);border-left:3px solid transparent;
+  border-radius:10px;padding:13px;margin-bottom:8px}
+.rec-item.H{border-left-color:#f87171}
+.rec-item.M{border-left-color:#fbbf24}
+.rec-item.L{border-left-color:#34d399}
+.inp-label{font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;font-weight:500}
+.section-sep{font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:#6366f1;margin-bottom:10px;margin-top:18px;
+  display:flex;align-items:center;gap:8px}
+.section-sep::after{content:'';flex:1;height:1px;background:var(--border)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hdr">
+  <h1><i class="bi bi-cpu-fill me-2" style="color:#6366f1"></i>Placement Predictor</h1>
+  <p>Enter an engineering student's profile — 8 ML models will predict campus placement probability</p>
+</div>
+
+<div class="row g-4">
+<!-- ════════════════════════════════════════
+     LEFT — Input form
+════════════════════════════════════════ -->
+<div class="col-lg-5">
+<div class="card-d">
+  <div style="font-weight:600;font-size:.95rem;margin-bottom:4px">
+    <i class="bi bi-person-fill me-2" style="color:#fbbf24"></i>Engineering Student Profile
+  </div>
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:18px">
+    Fill all sections — the model uses 24 raw features + 7 engineered composites
+  </div>
+
+  <form method="POST" id="predictForm">
+
+    <!-- ACADEMIC -->
+    <div class="section-sep"><i class="bi bi-mortarboard-fill"></i> Academic Records</div>
+    <div class="row g-2 mb-1">
+      <div class="col-4">
+        <label class="inp-label">CGPA (0–10)</label>
+        <input class="fc form-control" name="cgpa" type="number" step="0.01" min="0" max="10"
+               placeholder="e.g. 7.8" required value="{{ form.get('cgpa','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">10th %</label>
+        <input class="fc form-control" name="tenth_percentage" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 82" required value="{{ form.get('tenth_percentage','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">12th %</label>
+        <input class="fc form-control" name="twelfth_percentage" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 78" required value="{{ form.get('twelfth_percentage','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Backlogs</label>
+        <input class="fc form-control" name="backlogs" type="number" min="0" max="15"
+               placeholder="0" required value="{{ form.get('backlogs','0') }}">
+      </div>
+    </div>
+
+    <!-- APTITUDE -->
+    <div class="section-sep"><i class="bi bi-brain"></i> Aptitude &amp; Verbal</div>
+    <div class="row g-2 mb-1">
+      <div class="col-4">
+        <label class="inp-label">Aptitude (0–100)</label>
+        <input class="fc form-control" name="aptitude_score" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 68" required value="{{ form.get('aptitude_score','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Logical (0–100)</label>
+        <input class="fc form-control" name="logical_score" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 65" required value="{{ form.get('logical_score','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Communication (0–100)</label>
+        <input class="fc form-control" name="communication_score" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 70" required value="{{ form.get('communication_score','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">English (0–100)</label>
+        <input class="fc form-control" name="english_score" type="number" step="0.1" min="0" max="100"
+               placeholder="e.g. 72" required value="{{ form.get('english_score','') }}">
+      </div>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="section-sep"><i class="bi bi-code-slash"></i> Technical Skills (0–10)</div>
+    <div class="row g-2 mb-1">
+      {% for name, ph in [('programming_skill','Python/Java/C++'),('dsa_skill','Arrays/Trees/DP'),
+                          ('database_skill','SQL/NoSQL'),('web_skill','HTML/React/Flask'),
+                          ('ml_skill','ML/AI/DL'),('cloud_skill','AWS/Azure/GCP')] %}
+      <div class="col-4">
+        <label class="inp-label">{{ name.replace('_skill','').replace('_',' ').title() }}</label>
+        <input class="fc form-control" name="{{ name }}" type="number" step="0.1" min="0" max="10"
+               placeholder="{{ ph }}" required value="{{ form.get(name,'') }}">
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ACTIVITIES -->
+    <div class="section-sep"><i class="bi bi-award-fill"></i> Activities &amp; Achievements</div>
+    <div class="row g-2 mb-1">
+      <div class="col-3">
+        <label class="inp-label">Projects</label>
+        <input class="fc form-control" name="num_projects" type="number" min="0" max="20"
+               placeholder="0" required value="{{ form.get('num_projects','') }}">
+      </div>
+      <div class="col-3">
+        <label class="inp-label">Certifications</label>
+        <input class="fc form-control" name="num_certifications" type="number" min="0" max="20"
+               placeholder="0" required value="{{ form.get('num_certifications','') }}">
+      </div>
+      <div class="col-3">
+        <label class="inp-label">Hackathons</label>
+        <input class="fc form-control" name="hackathons" type="number" min="0" max="20"
+               placeholder="0" required value="{{ form.get('hackathons','') }}">
+      </div>
+      <div class="col-3">
+        <label class="inp-label">Publications</label>
+        <input class="fc form-control" name="paper_publications" type="number" min="0" max="10"
+               placeholder="0" required value="{{ form.get('paper_publications','0') }}">
+      </div>
+    </div>
+
+    <!-- INTERNSHIP -->
+    <div class="section-sep"><i class="bi bi-building-fill"></i> Internship</div>
+    <div class="row g-2 mb-1">
+      <div class="col-4">
+        <label class="inp-label">Done?</label>
+        <select class="fc form-select" name="internship_done" required>
+          <option value="1" {% if form.get('internship_done')=='1.0' or form.get('internship_done')=='1' %}selected{% endif %}>Yes</option>
+          <option value="0" {% if not form or form.get('internship_done','0') in ['0','0.0'] %}selected{% endif %}>No</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Duration (months)</label>
+        <input class="fc form-control" name="internship_months" type="number" min="0" max="12"
+               placeholder="0" required value="{{ form.get('internship_months','0') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Stipend (₹/month)</label>
+        <input class="fc form-control" name="internship_stipend" type="number" min="0" max="100000"
+               placeholder="0" required value="{{ form.get('internship_stipend','0') }}">
+      </div>
+    </div>
+
+    <!-- SOFT SKILLS -->
+    <div class="section-sep"><i class="bi bi-people-fill"></i> Soft Skills (0–10)</div>
+    <div class="row g-2 mb-4">
+      <div class="col-4">
+        <label class="inp-label">Leadership</label>
+        <input class="fc form-control" name="leadership_score" type="number" step="0.1" min="0" max="10"
+               placeholder="0–10" required value="{{ form.get('leadership_score','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">Teamwork</label>
+        <input class="fc form-control" name="teamwork_score" type="number" step="0.1" min="0" max="10"
+               placeholder="0–10" required value="{{ form.get('teamwork_score','') }}">
+      </div>
+      <div class="col-4">
+        <label class="inp-label">GD Score (0–10)</label>
+        <input class="fc form-control" name="gd_score" type="number" step="0.1" min="0" max="10"
+               placeholder="0–10" required value="{{ form.get('gd_score','') }}">
+      </div>
+    </div>
+
+    <button type="submit" class="btn-acc w-100" style="padding:13px;font-size:1rem">
+      <i class="bi bi-lightning-fill me-2"></i>Predict Placement
+    </button>
+  </form>
+</div>
+</div>
+
+<!-- ════════════════════════════════════════
+     RIGHT — Results
+════════════════════════════════════════ -->
+<div class="col-lg-7">
+
+{% if results %}
+<!-- ── MAIN VERDICT ── -->
+<div class="{% if ensemble==1 %}verdict-placed{% else %}verdict-risk{% endif %} mb-3">
+  <div class="row align-items-center g-3">
+    <div class="col-auto" style="font-size:3.2rem">
+      {% if ensemble==1 %}🎓{% else %}⚠️{% endif %}
+    </div>
+    <div class="col">
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">
+        Ensemble Verdict ({{ votes }}/{{ total_models }} models agree)
+      </div>
+      <div style="font-size:2rem;font-weight:900;
+        color:{% if ensemble==1 %}#34d399{% else %}#f87171{% endif %}">
+        {% if ensemble==1 %}✅ LIKELY TO BE PLACED{% else %}❌ PLACEMENT AT RISK{% endif %}
+      </div>
+      <div style="margin-top:6px;font-size:.9rem;color:var(--muted)">
+        Average probability across all models:
+        <b style="font-size:1.1rem;color:{% if avg_prob>=50 %}#34d399{% else %}#f87171{% endif %}">
+          {{ avg_prob }}%
+        </b>
+        &nbsp;·&nbsp; Best model used:
+        <b style="color:#a5b4fc">{{ best_model }}</b>
+      </div>
+      <div class="pbar mt-2" style="height:10px">
+        <div class="pbar-fill" style="width:{{ avg_prob }}%;
+          background:{% if avg_prob>=60 %}#34d399{% elif avg_prob>=40 %}#fbbf24{% else %}#f87171{% endif %}">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Per-model chips ── -->
+<div class="section-label"><i class="bi bi-cpu me-1"></i>All 8 Model Predictions</div>
+<div class="row g-2 mb-3">
+{% for name, r in results.items() %}
+<div class="col-6 col-md-4">
+  <div class="model-chip">
+    <div class="mn">{{ name }}</div>
+    <div class="mv" style="color:{% if r.pred==1 %}#34d399{% else %}#f87171{% endif %}">
+      {% if r.pred==1 %}✅ Placed{% else %}❌ Not Placed{% endif %}
+    </div>
+    <div class="ms">
+      Prob: <b style="color:{% if r.prob>=50 %}#34d399{% else %}#f87171{% endif %}">{{ r.prob }}%</b>
+      &nbsp;·&nbsp; F1: {{ r.f1 }}%
+    </div>
+    <div class="pbar mt-2">
+      <div class="pbar-fill" style="width:{{ r.prob }}%;
+        background:{% if r.pred==1 %}#34d399{% else %}#f87171{% endif %}"></div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+
+<!-- ── Probability comparison chart ── -->
+<div class="card-d mb-3">
+  <div style="font-weight:600;font-size:.88rem;margin-bottom:10px">
+    <i class="bi bi-bar-chart-fill me-1" style="color:#6366f1"></i>
+    Placement Probability by Model
+  </div>
+  <canvas id="probChart" height="100"></canvas>
+</div>
+
+<!-- ── Skill Recommendations ── -->
+{% if recs %}
+<div class="card-d">
+  <div style="font-weight:600;font-size:.92rem;margin-bottom:4px">
+    <i class="bi bi-lightbulb-fill me-2" style="color:#fbbf24"></i>
+    Personalised Skill Improvement Plan
+  </div>
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">
+    Based on feature importance analysis — top {{ recs|length }} areas to improve
+  </div>
+  {% for r in recs %}
+  <div class="rec-item {{ r.priority[0] }}">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:5px">
+      <span style="font-weight:600;font-size:.87rem">{{ r.label }}</span>
+      <span style="font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:20px;
+        background:{% if r.priority=='High' %}rgba(248,113,113,.12){% elif r.priority=='Medium' %}rgba(251,191,36,.12){% else %}rgba(52,211,153,.12){% endif %};
+        color:{% if r.priority=='High' %}#f87171{% elif r.priority=='Medium' %}#fbbf24{% else %}#34d399{% endif %}">
+        {{ r.priority }} Priority · {{ r.importance }}% impact
+      </span>
+    </div>
+    <div style="display:flex;gap:14px;font-size:.78rem;margin-bottom:7px">
+      <span>Your value: <b style="color:#f87171">{{ r.current }}</b></span>
+      <span>Target: <b style="color:#34d399">{{ r.benchmark }}</b></span>
+      <span>Gap: <b style="color:#fbbf24">{{ r.gap }}</b></span>
+    </div>
+    <div class="pbar mb-2">
+      <div class="pbar-fill"
+           style="width:{% if r.benchmark!=0 %}{{ [r.current/r.benchmark*100, 100]|min|round }}{% else %}100{% endif %}%;
+           background:{% if r.priority=='High' %}#f87171{% elif r.priority=='Medium' %}#fbbf24{% else %}#34d399{% endif %}">
+      </div>
+    </div>
+    <div style="font-size:.78rem;color:#a5b4fc">💡 {{ r.tip }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<!-- ── Empty state ── -->
+<div class="card-d d-flex flex-column align-items-center justify-content-center text-center"
+     style="min-height:480px;border:2px dashed var(--border)">
+  <div style="font-size:4rem;opacity:.22">🎓</div>
+  <div style="color:var(--muted);margin-top:18px;font-size:.95rem;max-width:300px">
+    Fill the engineering student profile<br>and click
+    <b style="color:#a5b4fc">Predict Placement</b>
+  </div>
+  <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:340px">
+    {% for m in ['Logistic Regression','Decision Tree','Random Forest','Gradient Boosting','AdaBoost','SVM','KNN','Naive Bayes'] %}
+    <span style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);
+      color:#818cf8;border-radius:20px;padding:3px 12px;font-size:.75rem">{{ m }}</span>
+    {% endfor %}
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <a href="/preprocessing" class="btn-gh" style="font-size:.8rem"><i class="bi bi-funnel me-1"></i>See Preprocessing</a>
+    <a href="/justify"       class="btn-gh" style="font-size:.8rem"><i class="bi bi-trophy me-1"></i>Model Justification</a>
+  </div>
+</div>
+{% endif %}
+
+</div><!-- end right col -->
+</div><!-- end row -->
+{% endblock %}
+
+{% block extra_js %}
+{% if results %}
+<script>
+const modelNames = {{ results.keys()|list|tojson }};
+const probs      = {{ results.values()|map(attribute='prob')|list|tojson }};
+new Chart(document.getElementById('probChart'), {
+  type: 'bar',
+  data:{
+    labels: modelNames,
+    datasets:[{
+      label: 'Placement Probability (%)',
+      data: probs,
+      backgroundColor: probs.map(p => p>=50 ? 'rgba(52,211,153,.75)' : 'rgba(248,113,113,.75)'),
+      borderColor:     probs.map(p => p>=50 ? '#34d399' : '#f87171'),
+      borderWidth: 1, borderRadius: 7,
+    }]
+  },
+  options:{
+    plugins:{
+      legend:{display:false},
+      annotation:{annotations:{line50:{type:'line',yMin:50,yMax:50,
+        borderColor:'rgba(255,255,255,.3)',borderDash:[4,4],borderWidth:1}}}
+    },
+    scales:{
+      x:{ticks:{color:'#94a3b8',font:{size:9.5}},grid:{color:'#1e293b'}},
+      y:{min:0,max:100,ticks:{color:'#94a3b8'},grid:{color:'#334155'},
+         title:{display:true,text:'Probability (%)',color:'#64748b'}},
+    }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

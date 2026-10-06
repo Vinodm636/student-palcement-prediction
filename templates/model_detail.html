@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ model_name }} — PlaceIQ{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1>
+      <i class="bi bi-cpu-fill me-2" style="color:#6366f1"></i>{{ model_name }}
+      {% if is_best %}<span style="background:rgba(251,191,36,.15);color:#fbbf24;border-radius:20px;padding:3px 14px;font-size:.8rem;font-weight:700;margin-left:8px;vertical-align:middle">🏆 BEST MODEL</span>{% endif %}
+    </h1>
+    <p>Detailed evaluation metrics and ROC curve</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/analytics" class="btn-gh"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a href="/predict"   class="btn-acc"><i class="bi bi-lightning-fill me-1"></i>Predict</a>
+  </div>
+</div>
+
+<!-- Metric stat cards -->
+<div class="row g-3 mb-4">
+  {% set metrics_list = [
+    ('Accuracy',  r.accuracy,  '#6366f1', 'bi-bullseye'),
+    ('Precision', r.precision, '#60a5fa', 'bi-crosshair'),
+    ('Recall',    r.recall,    '#f472b6', 'bi-arrow-repeat'),
+    ('F1-Score',  r.f1,        '#fbbf24', 'bi-stars'),
+    ('ROC-AUC',   r.roc_auc,   '#a78bfa', 'bi-graph-up'),
+    ('CV Acc',    r.cv_mean,   '#34d399', 'bi-check2-all'),
+  ] %}
+  {% for label, val, color, icon in metrics_list %}
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:{{ color }}22;color:{{ color }}"><i class="bi {{ icon }}"></i></div>
+      <div class="stat-val" style="color:{{ color }}">{{ val }}%</div>
+      <div class="stat-lbl">{{ label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- ROC Curve -->
+  <div class="col-md-7">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-activity me-2" style="color:#34d399"></i>ROC Curve
+        <span style="color:var(--muted);font-weight:400;font-size:.8rem;margin-left:6px">AUC = {{ r.roc_auc }}%</span>
+      </div>
+      <canvas id="rocChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Classification Report -->
+  <div class="col-md-5">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-file-text-fill me-2" style="color:#f472b6"></i>Classification Report
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr>
+          </thead>
+          <tbody>
+          {% for row in cr_rows %}
+          <tr>
+            <td style="font-weight:600">{{ row.label }}</td>
+            <td style="color:#60a5fa">{{ row.precision }}%</td>
+            <td style="color:#f472b6">{{ row.recall }}%</td>
+            <td style="color:#fbbf24;font-weight:600">{{ row.f1 }}%</td>
+            <td style="color:var(--muted)">{{ row.support }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Cross-validation -->
+      <div class="mt-3" style="background:var(--card2);border-radius:10px;padding:14px">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">5-Fold Cross Validation</div>
+        <div style="font-size:1.4rem;font-weight:700;color:#34d399">{{ r.cv_mean }}%</div>
+        <div style="font-size:.78rem;color:var(--muted)">± {{ r.cv_std }}% std deviation</div>
+        <div class="pbar mt-2"><div class="pbar-fill" style="width:{{ r.cv_mean }}%;background:linear-gradient(90deg,#6366f1,#a855f7)"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confusion Matrix (image) + raw numbers -->
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-grid-3x3 me-2" style="color:#f472b6"></i>Confusion Matrix
+      </div>
+      <img src="/static/charts/{{ cm_img }}" class="img-fluid rounded" alt="Confusion Matrix">
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card-d h-100">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>What These Metrics Mean
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        {% set explanations = [
+          ('Accuracy',  r.accuracy,  '#6366f1', 'Percentage of all predictions (placed + not placed) that were correct.'),
+          ('Precision', r.precision, '#60a5fa', 'Of students predicted as Placed, how many were actually placed? Avoids false positives.'),
+          ('Recall',    r.recall,    '#f472b6', 'Of all students who actually got placed, how many did the model identify? Avoids false negatives.'),
+          ('F1-Score',  r.f1,        '#fbbf24', 'Harmonic mean of Precision and Recall. Best single metric when classes are imbalanced.'),
+          ('ROC-AUC',   r.roc_auc,   '#a78bfa', 'Area under the ROC curve. Measures how well the model distinguishes placed vs not placed. 100% = perfect.'),
+        ] %}
+        {% for label, val, color, desc in explanations %}
+        <div style="background:var(--card2);border-radius:10px;padding:12px">
+          <div class="d-flex justify-content-between mb-1">
+            <span style="font-weight:600;font-size:.85rem;color:{{ color }}">{{ label }}</span>
+            <span style="font-weight:700;color:{{ color }}">{{ val }}%</span>
+          </div>
+          <div style="font-size:.78rem;color:var(--muted)">{{ desc }}</div>
+          <div class="pbar mt-2"><div class="pbar-fill" style="width:{{ val }}%;background:{{ color }}"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const rocData = {{ roc_data|safe }};
+new Chart(document.getElementById('rocChart'), {
+  type: 'line',
+  data: {
+    datasets: [
+      {
+        label: '{{ model_name }} (AUC {{ r.roc_auc }}%)',
+        data: rocData, parsing:{xAxisKey:'x',yAxisKey:'y'},
+        borderColor: '#6366f1', backgroundColor:'rgba(99,102,241,.1)',
+        fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2.5,
+      },
+      {
+        label: 'Random Classifier',
+        data: [{x:0,y:0},{x:1,y:1}], parsing:{xAxisKey:'x',yAxisKey:'y'},
+        borderColor: 'rgba(255,255,255,.2)', borderDash:[5,5],
+        fill:false, pointRadius:0, borderWidth:1.5,
+      }
+    ]
+  },
+  options:{
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},
+    scales:{
+      x:{type:'linear',min:0,max:1,
+         title:{display:true,text:'False Positive Rate',color:'#64748b'},
+         ticks:{color:'#94a3b8'},grid:{color:'#334155'}},
+      y:{min:0,max:1,
+         title:{display:true,text:'True Positive Rate',color:'#64748b'},
+         ticks:{color:'#94a3b8'},grid:{color:'#334155'}},
+    }
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Preprocessing — PlaceIQ{% endblock %}
+{% block extra_css %}
+<style>
+.step-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative}
+.step-num{position:absolute;top:-14px;left:20px;
+  background:linear-gradient(135deg,#6366f1,#a855f7);color:white;
+  border-radius:50%;width:28px;height:28px;display:flex;align-items:center;
+  justify-content:center;font-size:.8rem;font-weight:700}
+.step-title{font-weight:700;font-size:.95rem;margin-bottom:4px}
+.step-desc{color:var(--muted);font-size:.83rem;line-height:1.6}
+.eng-card{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.eng-formula{font-family:monospace;font-size:.8rem;color:#a5b4fc;
+  background:rgba(99,102,241,.1);border-radius:8px;padding:10px 14px;margin-top:8px;line-height:1.7}
+.stat-mini{background:var(--card2);border-radius:10px;padding:12px 16px;text-align:center}
+.stat-mini .n{font-size:1.5rem;font-weight:700}
+.stat-mini .l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.badge-raw{background:rgba(251,191,36,.12);color:#fbbf24;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:600}
+.badge-eng{background:rgba(99,102,241,.12);color:#a5b4fc;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:600}
+.badge-green{background:rgba(52,211,153,.12);color:#34d399;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:600}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1><i class="bi bi-funnel-fill me-2" style="color:#6366f1"></i>Data Preprocessing &amp; Feature Engineering</h1>
+    <p>Full pipeline — from raw CSV to ML-ready feature matrix</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/analytics"  class="btn-gh"><i class="bi bi-graph-up me-1"></i>Analytics</a>
+    <a href="/justify"    class="btn-acc"><i class="bi bi-trophy me-1"></i>Model Justification</a>
+  </div>
+</div>
+
+<!-- Overview stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-mini"><div class="n" style="color:#fbbf24">{{ raw_rows }}</div><div class="l">Raw Rows</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-mini"><div class="n" style="color:#34d399">{{ clean_rows }}</div><div class="l">Clean Rows</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-mini"><div class="n" style="color:#60a5fa">{{ raw_cols }}</div><div class="l">Raw Features</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-mini"><div class="n" style="color:#a78bfa">{{ clean_cols + 7 }}</div><div class="l">After Engineering</div></div>
+  </div>
+</div>
+
+<!-- Pipeline steps -->
+<div style="font-weight:700;font-size:1rem;margin-bottom:18px">
+  <i class="bi bi-diagram-3-fill me-2" style="color:#6366f1"></i>Preprocessing Pipeline Steps
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Step 1 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-title">📥 Data Collection &amp; Loading</div>
+      <div class="step-desc">
+        Loaded engineering student placement dataset from <code>placement_data.csv</code>.<br>
+        <b>{{ raw_rows }}</b> students across 8 BE/BTech branches (CSE, ISE, ECE, EEE, MECH, CIVIL, AIML, DS).
+        <b>{{ raw_cols }}</b> raw features including academic, aptitude, technical, activity, and internship data.
+      </div>
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        <span class="badge-raw">700 Students</span>
+        <span class="badge-raw">8 Branches</span>
+        <span class="badge-raw">{{ raw_cols }} Raw Features</span>
+        <span class="badge-raw">1 Target: Placed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-title">🔍 Duplicate Detection</div>
+      <div class="step-desc">
+        Scanned entire dataset for duplicate rows using USN and name as identifiers.
+        Removes exact duplicates that can bias model training.
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <span class="badge-{{ 'green' if pre.duplicates_removed == 0 else 'raw' }}">
+          {{ pre.duplicates_removed }} Duplicates Removed
+        </span>
+        <span class="badge-green">Dataset Integrity: OK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-title">🩹 Missing Value Imputation</div>
+      <div class="step-desc">
+        Real-world data is never complete. Missing values were detected in aptitude,
+        logical, English, and GD score columns (approx. 4% each — simulating absent
+        test data). <b>Strategy: Median imputation</b> for all numeric columns (robust to outliers).
+      </div>
+      {% if missing_before %}
+      <div class="mt-3">
+        {% for col, cnt in missing_before.items() %}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-size:.78rem;color:var(--muted);width:160px">{{ col }}</span>
+          <div class="pbar" style="flex:1"><div class="pbar-fill" style="width:{{ (cnt/700*100)|round }}%;background:#f87171"></div></div>
+          <span style="font-size:.78rem;color:#f87171;font-weight:600">{{ cnt }} missing</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="d-flex gap-2 mt-3">
+        <span class="badge-green">After: {{ pre.missing_after }} Missing</span>
+        <span class="badge-eng">Strategy: Median Imputation</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-title">📊 Outlier Detection &amp; Capping</div>
+      <div class="step-desc">
+        Applied <b>IQR method</b> on continuous score columns (aptitude, logical, English, communication, GD).
+        Outliers are <b>capped</b> (Winsorized) rather than removed, preserving row count while
+        reducing extreme value influence on model training.
+        <br><br>
+        <b>Rule:</b> Values outside [Q1 − 1.5×IQR, Q3 + 1.5×IQR] are clipped to the boundary.
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <span class="badge-raw">{{ pre.outliers_capped }} Values Capped</span>
+        <span class="badge-eng">Method: IQR Winsorization</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-title">🏷️ Label Encoding</div>
+      <div class="step-desc">
+        Categorical features (branch name) are label-encoded into numeric form
+        for algorithms that require numeric input (SVM, KNN, Logistic Regression).
+        <br><br>
+        Tree-based models (RF, GBM) can handle categories natively, but a unified
+        encoding ensures consistent input across all 8 classifiers.
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <span class="badge-eng">Branch → Integer (0–7)</span>
+        <span class="badge-eng">internship_done → 0/1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="col-md-6">
+    <div class="step-card">
+      <div class="step-num">6</div>
+      <div class="step-title">⚖️ Feature Scaling (StandardScaler)</div>
+      <div class="step-desc">
+        Applied <b>Z-score standardisation</b> (zero mean, unit variance) to all features.
+        This is critical for distance-based and gradient-based algorithms:
+        <br>• SVM — kernel distances are scale-sensitive
+        <br>• KNN — Euclidean distance biased by large scales
+        <br>• Logistic Regression — gradient convergence requires scaling
+        <br>Tree-based models are scale-invariant but unified scaling is maintained.
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <span class="badge-eng">Method: StandardScaler</span>
+        <span class="badge-green">Applied to all {{ raw_cols + 7 }} features</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Feature Engineering -->
+<div style="font-weight:700;font-size:1rem;margin-bottom:18px;margin-top:8px">
+  <i class="bi bi-tools me-2" style="color:#fbbf24"></i>Feature Engineering — 7 Composite Features Created
+</div>
+
+<div class="row g-3 mb-4">
+  {% set fe_data = [
+    ('academic_score',    '📚', '#6366f1', eng_descriptions.academic_score),
+    ('aptitude_composite','🧠', '#34d399', eng_descriptions.aptitude_composite),
+    ('tech_score',        '💻', '#f472b6', eng_descriptions.tech_score),
+    ('activity_score',    '🏆', '#fb923c', eng_descriptions.activity_score),
+    ('soft_skill_score',  '🗣️', '#60a5fa', eng_descriptions.soft_skill_score),
+    ('internship_score',  '🏢', '#a78bfa', eng_descriptions.internship_score),
+    ('overall_readiness', '⭐', '#fbbf24', eng_descriptions.overall_readiness),
+  ] %}
+  {% for feat, icon, color, desc in fe_data %}
+  <div class="col-md-6">
+    <div class="eng-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:1.3rem">{{ icon }}</span>
+        <span style="font-weight:600;font-size:.9rem;color:{{ color }}">{{ feat }}</span>
+        <span class="badge-eng ms-auto">Engineered</span>
+      </div>
+      <div style="color:var(--muted);font-size:.82rem">{{ desc }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Correlation chart -->
+<div class="row g-3">
+  <div class="col-md-7">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.92rem;margin-bottom:14px">
+        <i class="bi bi-diagram-2-fill me-2" style="color:#6366f1"></i>Feature Correlation with Placement (Top 12)
+      </div>
+      <canvas id="corrChart" height="120"></canvas>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.92rem;margin-bottom:14px">
+        <i class="bi bi-image me-2" style="color:#34d399"></i>Missing Values Chart
+      </div>
+      {% if missing_before %}
+      <img src="/static/charts/missing_values.png" class="img-fluid rounded" alt="Missing values">
+      {% else %}
+      <div class="d-flex flex-column align-items-center justify-content-center text-center"
+           style="height:200px;color:var(--muted)">
+        <div style="font-size:2.5rem">✅</div>
+        <div style="margin-top:10px">No missing values detected<br>in this dataset run.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const cLabels = {{ corr_labels|safe }};
+const cVals   = {{ corr_values|safe }};
+new Chart(document.getElementById('corrChart'), {
+  type: 'bar',
+  data:{
+    labels: cLabels,
+    datasets:[{
+      label: 'Correlation with Placement',
+      data: cVals,
+      backgroundColor: cLabels.map((_,i)=>['#6366f1','#34d399','#f472b6','#fb923c','#60a5fa','#a78bfa','#fbbf24','#22d3ee'][i%8]),
+      borderRadius: 6,
+    }]
+  },
+  options:{
+    indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{min:0,ticks:{color:'#94a3b8'},grid:{color:'#334155'},
+         title:{display:true,text:'Absolute Correlation',color:'#64748b'}},
+      y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{display:false}},
+    }
+  }
+});
+</script>
+{% endblock %}

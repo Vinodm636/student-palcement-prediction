@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }} — PlaceIQ{% endblock %}
+{% block extra_css %}
+<style>
+.info-row{display:flex;justify-content:space-between;padding:8px 0;
+  border-bottom:1px solid var(--border);font-size:.87rem}
+.info-row:last-child{border-bottom:none}
+.info-row .lbl{color:var(--muted)}
+.info-row .val{font-weight:500}
+.skill-row{margin-bottom:10px}
+.skill-row .name{font-size:.8rem;color:var(--muted);margin-bottom:3px}
+.rec-item{background:var(--card2);border-radius:12px;padding:14px;margin-bottom:10px;
+  border-left:3px solid transparent}
+.rec-item.high{border-left-color:#f87171}
+.rec-item.medium{border-left-color:#fbbf24}
+.rec-item.low{border-left-color:#34d399}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1><i class="bi bi-person-badge-fill me-2" style="color:#6366f1"></i>{{ student.name }}</h1>
+    <p>{{ student.usn }} · {{ student.branch }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/dashboard" class="btn-gh"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a href="/predict"   class="btn-acc"><i class="bi bi-cpu-fill me-1"></i>Predict New</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Prediction verdict card -->
+  <div class="col-md-4">
+    <div class="card-d text-center" style="background:{% if pred==1 %}rgba(52,211,153,.08){% else %}rgba(248,113,113,.08){% endif %};border-color:{% if pred==1 %}rgba(52,211,153,.3){% else %}rgba(248,113,113,.3){% endif %}">
+      <div style="font-size:3.5rem;margin-bottom:8px">{% if pred==1 %}🎉{% else %}📉{% endif %}</div>
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">ML Prediction</div>
+      <div style="font-size:1.4rem;font-weight:800;margin-top:6px;color:{% if pred==1 %}#34d399{% else %}#f87171{% endif %}">
+        {% if pred==1 %}LIKELY PLACED{% else %}AT RISK{% endif %}
+      </div>
+      <div style="font-size:1.8rem;font-weight:700;color:{% if prob>=60 %}#34d399{% elif prob>=40 %}#fbbf24{% else %}#f87171{% endif %};margin-top:4px">
+        {{ prob }}%
+      </div>
+      <div style="font-size:.78rem;color:var(--muted)">Placement Probability</div>
+      <div class="pbar mt-3">
+        <div class="pbar-fill" style="width:{{ prob }}%;background:{% if prob>=60 %}#34d399{% elif prob>=40 %}#fbbf24{% else %}#f87171{% endif %}"></div>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:8px">Predicted by: {{ best_model }}</div>
+    </div>
+
+    <!-- Actual status -->
+    <div class="card-d mt-3 text-center">
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Actual Status</div>
+      {% if student.placed == 1 %}
+      <span class="badge-placed" style="font-size:.9rem;padding:6px 18px">✅ Placed</span>
+      <div style="color:#fbbf24;font-size:1.1rem;font-weight:700;margin-top:10px">₹{{ student.package_lpa }} LPA</div>
+      {% else %}
+      <span class="badge-not" style="font-size:.9rem;padding:6px 18px">❌ Not Placed</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Academic info -->
+  <div class="col-md-4">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-mortarboard-fill me-2" style="color:#6366f1"></i>Academic Profile
+      </div>
+      {% set academic = [
+        ('CGPA', student.cgpa),('10th %', student.tenth_percentage),
+        ('12th %', student.twelfth_percentage),('Backlogs', student.backlogs),
+        ('Aptitude Score', student.aptitude_score),
+        ('Logical Score', student.logical_score),
+        ('Communication', student.communication_score),
+      ] %}
+      {% for label, val in academic %}
+      <div class="info-row">
+        <span class="lbl">{{ label }}</span>
+        <span class="val" style="color:{% if label=='Backlogs' and val>0 %}#f87171{% elif label=='CGPA' and val>=7.5 %}#34d399{% elif label=='CGPA' and val<6 %}#f87171{% else %}var(--text){% endif %}">
+          {{ val }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Activities -->
+  <div class="col-md-4">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-lightning-charge-fill me-2" style="color:#fbbf24"></i>Activities & Experience
+      </div>
+      {% set activities = [
+        ('Projects', student.num_projects),
+        ('Certifications', student.num_certifications),
+        ('Hackathons', student.hackathons),
+        ('Internship Done', 'Yes ✅' if student.internship_done else 'No ❌'),
+        ('Internship Months', student.internship_months if student.internship_done else '—'),
+        ('Leadership Score', student.leadership_score),
+        ('Teamwork Score', student.teamwork_score),
+      ] %}
+      {% for label, val in activities %}
+      <div class="info-row">
+        <span class="lbl">{{ label }}</span>
+        <span class="val">{{ val }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Skill radar + bars -->
+<div class="row g-3 mb-4">
+  <div class="col-md-5">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:12px">
+        <i class="bi bi-hexagon-fill me-2" style="color:#a855f7"></i>Skill Radar
+      </div>
+      <canvas id="radarChart" height="220"></canvas>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card-d">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:14px">
+        <i class="bi bi-bar-chart-fill me-2" style="color:#34d399"></i>Technical Skill Breakdown
+      </div>
+      {% set skills = [
+        ('Programming', student.programming_skill, 10, '#6366f1'),
+        ('Database',    student.database_skill, 10, '#34d399'),
+        ('Web Dev',     student.web_skill, 10, '#f472b6'),
+        ('ML / AI',     student.ml_skill, 10, '#fb923c'),
+        ('Cloud',       student.cloud_skill, 10, '#60a5fa'),
+        ('Leadership',  student.leadership_score, 10, '#a78bfa'),
+        ('Teamwork',    student.teamwork_score, 10, '#fbbf24'),
+      ] %}
+      {% for name, val, mx, color in skills %}
+      <div class="skill-row">
+        <div class="d-flex justify-content-between">
+          <span class="name">{{ name }}</span>
+          <span style="font-size:.78rem;color:{{ color }};font-weight:600">{{ val }}/{{ mx }}</span>
+        </div>
+        <div class="pbar">
+          <div class="pbar-fill" style="width:{{ (val/mx*100)|round }}%;background:{{ color }}"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Recommendations -->
+{% if recs %}
+<div class="card-d">
+  <div style="font-weight:600;font-size:.92rem;margin-bottom:16px">
+    <i class="bi bi-lightbulb-fill me-2" style="color:#fbbf24"></i>
+    Personalised Skill Improvement Plan
+    <span style="font-size:.75rem;color:var(--muted);font-weight:400;margin-left:6px">Based on feature importance analysis</span>
+  </div>
+  <div class="row g-2">
+  {% for r in recs %}
+  <div class="col-md-6">
+    <div class="rec-item {{ r.priority|lower }}">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <span style="font-weight:600;font-size:.88rem">{{ r.label }}</span>
+        <span style="font-size:.7rem;font-weight:600;padding:2px 10px;border-radius:20px;
+          background:{% if r.priority=='High' %}rgba(248,113,113,.12){% elif r.priority=='Medium' %}rgba(251,191,36,.12){% else %}rgba(52,211,153,.12){% endif %};
+          color:{% if r.priority=='High' %}#f87171{% elif r.priority=='Medium' %}#fbbf24{% else %}#34d399{% endif %}">
+          {{ r.priority }} Priority
+        </span>
+      </div>
+      <div style="display:flex;gap:16px;font-size:.78rem;margin-bottom:8px">
+        <span>Current: <b style="color:#f87171">{{ r.current }}</b></span>
+        <span>Target: <b style="color:#34d399">{{ r.benchmark }}</b></span>
+        <span>Importance: <b style="color:#a5b4fc">{{ r.importance }}%</b></span>
+      </div>
+      <div class="pbar mb-2">
+        <div class="pbar-fill" style="width:{% if r.benchmark!=0 %}{{ [r.current/r.benchmark*100, 100]|min|round }}{% else %}0{% endif %}%;
+          background:{% if r.priority=='High' %}#f87171{% elif r.priority=='Medium' %}#fbbf24{% else %}#34d399{% endif %}"></div>
+      </div>
+      <div style="font-size:.78rem;color:#a5b4fc">💡 {{ r.tip }}</div>
+    </div>
+  </div>
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+new Chart(document.getElementById('radarChart'), {
+  type: 'radar',
+  data: {
+    labels: {{ skill_labels|safe }},
+    datasets: [{
+      label: '{{ student.name }}',
+      data: {{ skill_vals|safe }},
+      borderColor: '#6366f1',
+      backgroundColor: 'rgba(99,102,241,.15)',
+      pointBackgroundColor: '#a5b4fc',
+      borderWidth: 2, pointRadius: 4,
+    }]
+  },
+  options:{
+    scales:{r:{
+      min:0, max:100,
+      ticks:{color:'#64748b',backdropColor:'transparent',stepSize:20},
+      grid:{color:'#334155'},
+      pointLabels:{color:'#94a3b8',font:{size:11}}
+    }},
+    plugins:{legend:{display:false}}
+  }
+});
+</script>
+{% endblock %}

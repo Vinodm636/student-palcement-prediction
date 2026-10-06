@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard — PlaceIQ{% endblock %}
+
+{% block content %}
+<div class="page-hdr d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1><i class="bi bi-trophy-fill me-2" style="color:#fbbf24"></i>Leaderboard</h1>
+    <p>Students ranked by CGPA — {{ df|length }} records shown</p>
+  </div>
+  <a href="/predict" class="btn-acc"><i class="bi bi-cpu-fill me-1"></i>Predict</a>
+</div>
+
+<!-- Filter -->
+<div class="card-d mb-3">
+  <form method="GET" action="/leaderboard" class="d-flex gap-2 flex-wrap align-items-center">
+    <select class="fs form-select" style="width:160px" name="branch">
+      <option value="">All Branches</option>
+      {% for b in branches %}<option value="{{ b }}" {% if b==branch_filter %}selected{% endif %}>{{ b }}</option>{% endfor %}
+    </select>
+    <select class="fs form-select" style="width:160px" name="status">
+      <option value="" {% if not status_filter %}selected{% endif %}>All Students</option>
+      <option value="placed"     {% if status_filter=='placed' %}selected{% endif %}>Placed Only</option>
+      <option value="not_placed" {% if status_filter=='not_placed' %}selected{% endif %}>Not Placed</option>
+    </select>
+    <button type="submit" class="btn-acc" style="padding:8px 18px">Filter</button>
+    {% if branch_filter or status_filter %}
+    <a href="/leaderboard" class="btn-gh">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Top 3 podium -->
+{% if df|length >= 3 %}
+<div class="row g-3 mb-4 justify-content-center">
+  {% set podium = [(1, '🥇', '#fbbf24', '1.5rem'), (0, '🥈', '#94a3b8', '1.2rem'), (2, '🥉', '#fb923c', '1.1rem')] %}
+  {% for idx, medal, color, font_size in podium %}
+    {% if idx < df|length %}
+    {% set row = df.iloc[idx] %}
+    <div class="col-md-3">
+      <div class="card-d text-center" style="border-color:{{ color }}44;background:{{ color }}08">
+        <div style="font-size:2.2rem">{{ medal }}</div>
+        <div style="font-weight:700;font-size:{{ font_size }};margin-top:6px">{{ row['name'] }}</div>
+        <span class="badge-branch mt-1 d-inline-block">{{ row['branch'] }}</span>
+        <div style="font-size:1.6rem;font-weight:800;color:{{ color }};margin:8px 0">{{ row['cgpa'] }}</div>
+        <div style="font-size:.75rem;color:var(--muted)">CGPA</div>
+        {% if row['placed'] == 1 %}
+        <div class="badge-placed mt-2 d-inline-block">✅ Placed · ₹{{ row['package_lpa'] }} LPA</div>
+        {% else %}
+        <div class="badge-not mt-2 d-inline-block">❌ Not Placed</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Full table -->
+<div class="card-d">
+  <div style="font-weight:600;font-size:.92rem;margin-bottom:14px">
+    <i class="bi bi-list-ol me-2" style="color:#6366f1"></i>Full Rankings
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Rank</th><th>Name</th><th>Branch</th><th>CGPA</th>
+          <th>Aptitude</th><th>Programming</th><th>Internship</th>
+          <th>Projects</th><th>Certs</th><th>Status</th><th>Package</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for _, row in df.iterrows() %}
+      <tr>
+        <td style="font-weight:700;color:{% if loop.index==1 %}#fbbf24{% elif loop.index==2 %}#94a3b8{% elif loop.index==3 %}#fb923c{% else %}var(--muted){% endif %}">
+          {% if loop.index==1 %}🥇
+          {% elif loop.index==2 %}🥈
+          {% elif loop.index==3 %}🥉
+          {% else %}{{ loop.index }}{% endif %}
+        </td>
+        <td>
+          <a href="/student/{{ row['usn'] }}" style="color:#a5b4fc;text-decoration:none;font-weight:500">
+            {{ row['name'] }}
+          </a>
+        </td>
+        <td><span class="badge-branch">{{ row['branch'] }}</span></td>
+        <td>
+          <span style="font-weight:600;color:{% if row['cgpa']>=8 %}#34d399{% elif row['cgpa']>=6.5 %}#fbbf24{% else %}#f87171{% endif %}">
+            {{ row['cgpa'] }}
+          </span>
+        </td>
+        <td>{{ row['aptitude_score'] }}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:5px">
+            <div class="pbar" style="width:42px"><div class="pbar-fill" style="width:{{ row['programming_skill']*10 }}%;background:#6366f1"></div></div>
+            <span style="font-size:.78rem">{{ row['programming_skill'] }}</span>
+          </div>
+        </td>
+        <td>
+          {% if row['internship_done'] %}
+          <span style="color:#34d399;font-size:.8rem">✅ {{ row['internship_months'] }}mo</span>
+          {% else %}
+          <span style="color:var(--muted);font-size:.8rem">—</span>
+          {% endif %}
+        </td>
+        <td style="text-align:center">{{ row['num_projects'] }}</td>
+        <td style="text-align:center">{{ row['num_certifications'] }}</td>
+        <td>
+          {% if row['placed'] == 1 %}
+          <span class="badge-placed">✅ Placed</span>
+          {% else %}
+          <span class="badge-not">❌ Not Placed</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row['placed'] == 1 %}
+          <span style="color:#fbbf24;font-weight:600;font-size:.82rem">₹{{ row['package_lpa'] }} LPA</span>
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

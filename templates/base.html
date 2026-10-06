@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PlaceIQ{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --sw:240px; --accent:#6366f1; --accent2:#8b5cf6;
+  --bg:#0f172a; --card:#1e293b; --card2:#273549;
+  --border:#334155; --text:#e2e8f0; --muted:#94a3b8;
+  --green:#34d399; --red:#f87171; --yellow:#fbbf24; --blue:#60a5fa;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{position:fixed;top:0;left:0;width:var(--sw);height:100vh;
+  background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;overflow-y:auto}
+.sb-brand{padding:22px 20px 16px;border-bottom:1px solid var(--border)}
+.sb-brand .logo{font-size:1.35rem;font-weight:800;
+  background:linear-gradient(135deg,#6366f1,#a855f7);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sb-brand small{color:var(--muted);font-size:.7rem}
+.sb-section{padding:14px 12px 4px}
+.sb-label{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);padding:0 8px 6px}
+.sb-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;
+  color:var(--muted);font-size:.87rem;font-weight:500;transition:all .18s;text-decoration:none}
+.sb-link i{font-size:1rem;width:18px;text-align:center}
+.sb-link:hover,.sb-link.active{background:rgba(99,102,241,.15);color:#a5b4fc}
+.sb-link.active{color:#c7d2fe;font-weight:600}
+.sb-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)}
+.user-badge{background:var(--card2);border-radius:12px;padding:10px 14px;
+  display:flex;align-items:center;gap:10px}
+.u-avatar{width:36px;height:36px;border-radius:50%;
+  background:linear-gradient(135deg,#6366f1,#a855f7);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.9rem;color:white;flex-shrink:0}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sw);padding:28px 32px;min-height:100vh}
+
+/* ── PAGE HEADER ── */
+.page-hdr{margin-bottom:26px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.page-hdr h1{font-size:1.55rem;font-weight:700}
+.page-hdr p{color:var(--muted);margin:4px 0 0;font-size:.88rem}
+
+/* ── CARDS ── */
+.card-d{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:20px 22px;transition:transform .2s,box-shadow .2s}
+.stat-card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.stat-icon{width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:12px}
+.stat-val{font-size:1.85rem;font-weight:700}
+.stat-lbl{font-size:.78rem;color:var(--muted);margin-top:2px}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:separate;border-spacing:0}
+.tbl thead th{background:#273549;color:var(--muted);font-size:.73rem;font-weight:600;
+  letter-spacing:.07em;text-transform:uppercase;padding:11px 14px;
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
+.tbl tbody tr{border-bottom:1px solid rgba(51,65,85,.5);transition:background .15s}
+.tbl tbody tr:hover{background:rgba(99,102,241,.07)}
+.tbl td{padding:10px 14px;font-size:.855rem;vertical-align:middle}
+.tbl-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+
+/* ── FORMS ── */
+.fc{background:#273549!important;border:1px solid var(--border)!important;
+  color:var(--text)!important;border-radius:10px!important;font-size:.875rem}
+.fc::placeholder{color:var(--muted)}
+.fc:focus{box-shadow:0 0 0 3px rgba(99,102,241,.25)!important;
+  border-color:var(--accent)!important}
+.fs{background:#273549!important;border:1px solid var(--border)!important;
+  color:var(--text)!important;border-radius:10px!important;font-size:.875rem}
+.fs option{background:#1e293b;color:var(--text)}
+
+/* ── BUTTONS ── */
+.btn-acc{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;
+  border:none;border-radius:10px;padding:8px 20px;font-weight:600;
+  font-size:.875rem;transition:all .2s;cursor:pointer}
+.btn-acc:hover{opacity:.9;transform:translateY(-1px);color:white}
+.btn-gh{background:transparent;border:1px solid var(--border);color:var(--muted);
+  border-radius:10px;padding:8px 18px;font-size:.875rem;transition:all .2s;text-decoration:none;display:inline-block}
+.btn-gh:hover{background:var(--card2);color:var(--text)}
+
+/* ── BADGES ── */
+.badge-placed{background:rgba(52,211,153,.12);color:#34d399;border-radius:20px;
+  padding:3px 12px;font-size:.75rem;font-weight:600}
+.badge-not{background:rgba(248,113,113,.12);color:#f87171;border-radius:20px;
+  padding:3px 12px;font-size:.75rem;font-weight:600}
+.badge-branch{background:rgba(99,102,241,.12);color:#a5b4fc;border-radius:20px;
+  padding:3px 10px;font-size:.73rem;font-weight:500}
+
+/* ── PROGRESS ── */
+.pbar{height:6px;border-radius:4px;background:var(--border);overflow:hidden}
+.pbar-fill{height:100%;border-radius:4px}
+
+/* ── ALERTS ── */
+.al-s{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);
+  color:#6ee7b7;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.al-d{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);
+  color:#fca5a5;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.al-i{background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);
+  color:#a5b4fc;border-radius:10px;padding:12px 16px;font-size:.85rem}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .main{margin-left:0;padding:16px}
+}
+</style>
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if session.get('user') %}
+<nav class="sidebar">
+  <div class="sb-brand">
+    <div class="logo"><i class="bi bi-mortarboard-fill"></i> PlaceIQ</div>
+    <small>Placement Prediction System</small>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Navigation</div>
+    <a href="/dashboard"  class="sb-link {% if request.path=='/dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2-fill"></i> Dashboard
+    </a>
+    <a href="/predict"    class="sb-link {% if request.path=='/predict' %}active{% endif %}">
+      <i class="bi bi-cpu-fill"></i> Predict Placement
+    </a>
+    <a href="/analytics"  class="sb-link {% if request.path=='/analytics' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i> Model Analytics
+    </a>
+    <a href="/leaderboard"   class="sb-link {% if request.path=='/leaderboard' %}active{% endif %}">
+      <i class="bi bi-trophy-fill"></i> Leaderboard
+    </a>
+    <a href="/preprocessing" class="sb-link {% if request.path=='/preprocessing' %}active{% endif %}">
+      <i class="bi bi-funnel-fill"></i> Preprocessing
+    </a>
+    <a href="/justify"       class="sb-link {% if request.path=='/justify' %}active{% endif %}">
+      <i class="bi bi-patch-check-fill"></i> Model Justification
+    </a>
+  </div>
+  <div class="sb-footer">
+    <div class="user-badge">
+      <div class="u-avatar">{{ session['user'][0].upper() }}</div>
+      <div>
+        <div style="font-weight:600;font-size:.85rem">{{ session['user'].capitalize() }}</div>
+        <div style="font-size:.7rem;color:var(--muted)">{{ session['role'].capitalize() }}</div>
+      </div>
+    </div>
+    <a href="/logout" class="btn-gh w-100 mt-3 text-center" style="font-size:.8rem;padding:9px">
+      <i class="bi bi-box-arrow-left me-1"></i>Sign Out
+    </a>
+  </div>
+</nav>
+{% endif %}
+
+<div class="{% if session.get('user') %}main{% endif %}">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for cat,msg in messages %}
+    <div class="al-{{ 's' if cat=='success' else 'd' if cat=='danger' else 'i' }} mb-3">
+      {{ msg }}
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
